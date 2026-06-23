@@ -128,4 +128,4 @@ Base URL: `http://localhost:5000/api`. Protected endpoints require `Authorizatio
 
 ## Postman Collection
 
-`electropi.postman_collection.json` includes all endpoints, including the password reset flow, with a `resetToken` collection variable you paste after receiving the email. The example emails in request bodies (e.g. `member@electropi.com`) are illustrative — replace them with a real address to actually receive reset emails.
+`electropi.postman_collection.json` includes all endpoints, including all the password reset flow, with a `resetToken` collection variable you paste after receiving the email. The example emails in request bodies (e.g. `member@electropi.com`) are illustrative — replace them with a real address to actually receive reset emails.
