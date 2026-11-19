@@ -1,53 +1,46 @@
 import { Project } from '../models/Project';
 import { AppError } from '../utils/AppError';
+import { assertProjectAccess, checkProjectAccess } from './projectAccess';
+import {
+  listSkip,
+  paginate,
+  sortDirection,
+  USER_PUBLIC_PROJECTION,
+  type ListQuery,
+} from '../utils/pagination';
+import type { UserRole } from '../constants';
 import type { CreateProjectInput, UpdateProjectInput } from '../validations/project.validation';
-
-interface ListQuery {
-  page: number;
-  limit: number;
-  sortBy: string;
-  sortOrder: 'asc' | 'desc';
-  status?: string;
-}
 
 export async function createProject(data: CreateProjectInput, userId: string) {
   const project = await Project.create({ ...data, owner: userId, members: [userId] });
   return project;
 }
 
-export async function listProjects(userId: string, role: string, query: ListQuery) {
+export async function listProjects(userId: string, role: UserRole, query: ListQuery) {
   const filter: Record<string, unknown> =
     role === 'admin' ? {} : { $or: [{ owner: userId }, { members: userId }] };
 
   if (query.status) filter['status'] = query.status;
 
-  const skip = (query.page - 1) * query.limit;
-  const sortDir = query.sortOrder === 'asc' ? 1 : -1;
-
   const [projects, total] = await Promise.all([
     Project.find(filter)
-      .sort({ [query.sortBy]: sortDir })
-      .skip(skip)
+      .sort({ [query.sortBy]: sortDirection(query.sortOrder) })
+      .skip(listSkip(query))
       .limit(query.limit)
-      .populate('owner', 'name email'),
+      .populate('owner', USER_PUBLIC_PROJECTION),
     Project.countDocuments(filter),
   ]);
 
-  return {
-    data: projects,
-    pagination: { total, page: query.page, limit: query.limit, pages: Math.ceil(total / query.limit) },
-  };
+  return paginate(projects, total, query);
 }
 
-export async function getProject(projectId: string, userId: string, role: string) {
-  const project = await Project.findById(projectId).populate('owner', 'name email');
+export async function getProject(projectId: string, userId: string, role: UserRole) {
+  const project = await Project.findById(projectId).populate('owner', USER_PUBLIC_PROJECTION);
   if (!project) throw new AppError('Project not found', 404);
 
-  if (role !== 'admin') {
-    const ownerId = String(project.owner._id ?? project.owner);
-    const isMember = project.members.some((m) => String(m) === userId);
-    if (ownerId !== userId && !isMember) throw new AppError('Forbidden', 403);
-  }
+  // The owner is populated here, so the check takes the fetched project
+  // instead of re-fetching it.
+  checkProjectAccess(project, userId, role);
   return project;
 }
 
@@ -55,27 +48,23 @@ export async function updateProject(
   projectId: string,
   data: UpdateProjectInput,
   userId: string,
-  role: string,
+  role: UserRole,
 ) {
-  const project = await Project.findById(projectId);
-  if (!project) throw new AppError('Project not found', 404);
+  // Members may manage tasks in a project, but only the owner (or an admin)
+  // may update the project itself.
+  const project = await assertProjectAccess(projectId, userId, role, { requireOwner: 'update' });
 
-  if (role !== 'admin' && String(project.owner) !== userId) {
-    throw new AppError('Only the project owner or admin can update this project', 403);
-  }
+  // Explicit field assignment, not Object.assign: only the fields the
+  // update schema allows are ever written, and Mongoose setters run.
+  if (data.title !== undefined) project.title = data.title;
+  if (data.description !== undefined) project.description = data.description;
+  if (data.status !== undefined) project.status = data.status;
 
-  Object.assign(project, data);
   await project.save();
   return project;
 }
 
-export async function deleteProject(projectId: string, userId: string, role: string) {
-  const project = await Project.findById(projectId);
-  if (!project) throw new AppError('Project not found', 404);
-
-  if (role !== 'admin' && String(project.owner) !== userId) {
-    throw new AppError('Only the project owner or admin can delete this project', 403);
-  }
-
+export async function deleteProject(projectId: string, userId: string, role: UserRole) {
+  const project = await assertProjectAccess(projectId, userId, role, { requireOwner: 'delete' });
   await project.deleteOne();
 }

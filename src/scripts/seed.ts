@@ -8,6 +8,7 @@ import { connectDB } from '../config/db';
 import { User } from '../models/User';
 import { Project } from '../models/Project';
 import { Task } from '../models/Task';
+import { BCRYPT_ROUNDS } from '../constants';
 
 async function seed() {
   await connectDB();
@@ -16,8 +17,8 @@ async function seed() {
   console.log('Cleared existing data');
 
   const [adminPass, memberPass] = await Promise.all([
-    bcrypt.hash('admin123', 12),
-    bcrypt.hash('member123', 12),
+    bcrypt.hash('admin123', BCRYPT_ROUNDS),
+    bcrypt.hash('member123', BCRYPT_ROUNDS),
   ]);
 
   const [admin, member] = await User.create([

@@ -47,6 +47,12 @@ app.get('/health', (_req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/projects', projectRouter);
 
+// Unknown routes get the same JSON envelope as every other response,
+// instead of Express's default HTML 404 page.
+app.use((_req, res) => {
+  res.status(404).json({ status: 'fail', message: 'Route not found' });
+});
+
 app.use(errorHandler);
 
 export default app;

@@ -1,7 +1,10 @@
 import { Schema, model, Document, Types } from 'mongoose';
+import { TASK_STATUSES, TASK_PRIORITIES } from '../constants';
+import type { TaskStatus, TaskPriority } from '../constants';
 
-export type TaskStatus = 'pending' | 'in_progress' | 'done';
-export type TaskPriority = 'low' | 'medium' | 'high';
+// Re-exported so existing imports from the model keep working; the values
+// themselves live in src/constants (single source of truth).
+export type { TaskStatus, TaskPriority };
 
 export interface ITask extends Document {
   title: string;
@@ -20,8 +23,8 @@ const taskSchema = new Schema<ITask>(
   {
     title: { type: String, required: true, trim: true },
     description: { type: String, default: '' },
-    status: { type: String, enum: ['pending', 'in_progress', 'done'], default: 'pending' },
-    priority: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
+    status: { type: String, enum: [...TASK_STATUSES], default: 'pending' },
+    priority: { type: String, enum: [...TASK_PRIORITIES], default: 'medium' },
     dueDate: { type: Date },
     project: { type: Schema.Types.ObjectId, ref: 'Project', required: true },
     assignedTo: { type: Schema.Types.ObjectId, ref: 'User' },

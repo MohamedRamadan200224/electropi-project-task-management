@@ -1,4 +1,4 @@
-import { createProject, listProjects, getProject, deleteProject } from '../services/project.service';
+import { createProject, listProjects, getProject, updateProject, deleteProject } from '../services/project.service';
 import { Project } from '../models/Project';
 
 jest.mock('../models/Project');
@@ -106,6 +106,50 @@ describe('ProjectService.getProject', () => {
 
     await expect(getProject('proj1', memberId, 'member'))
       .rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe('ProjectService.updateProject', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('updates allowed fields when owner requests it', async () => {
+    const proj = { ...mockProject, owner: adminId, save: jest.fn() };
+    (Project.findById as jest.Mock).mockResolvedValue(proj);
+
+    const result = await updateProject(
+      'proj1',
+      { title: 'New title', status: 'archived' },
+      adminId,
+      'member',
+    );
+
+    expect(proj.title).toBe('New title');
+    expect(proj.status).toBe('archived');
+    expect(proj.save).toHaveBeenCalled();
+    expect(result).toBe(proj);
+  });
+
+  it('throws 403 when non-owner member tries to update', async () => {
+    // memberId IS a member of this project, so the membership check passes
+    // and the owner-only check is the one that rejects the update.
+    (Project.findById as jest.Mock).mockResolvedValue({
+      ...mockProject,
+      owner: adminId,
+      members: [adminId, memberId],
+    });
+
+    await expect(updateProject('proj1', { title: 'New title' }, memberId, 'member'))
+      .rejects.toMatchObject({
+        statusCode: 403,
+        message: 'Only the project owner or admin can update this project',
+      });
+  });
+
+  it('throws 404 when project does not exist', async () => {
+    (Project.findById as jest.Mock).mockResolvedValue(null);
+
+    await expect(updateProject('proj1', { title: 'New title' }, adminId, 'member'))
+      .rejects.toMatchObject({ statusCode: 404 });
   });
 });
 

@@ -1,6 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodSchema, ZodError } from 'zod';
 
+// The shared shape of a validation failure — used both here and by the
+// global error handler, so a Zod error gets the same response wherever
+// it is thrown.
+export function formatZodIssues(err: ZodError): Array<{ field: string; message: string }> {
+  return err.issues.map((e) => ({ field: e.path.join('.'), message: e.message }));
+}
+
 export function validate(schema: ZodSchema) {
   return (req: Request, res: Response, next: NextFunction): void => {
     try {
@@ -29,7 +36,7 @@ export function validate(schema: ZodSchema) {
         res.status(400).json({
           status: 'fail',
           message: 'Validation error',
-          errors: err.issues.map((e) => ({ field: e.path.join('.'), message: e.message })),
+          errors: formatZodIssues(err),
         });
         return;
       }

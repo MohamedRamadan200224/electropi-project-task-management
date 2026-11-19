@@ -1,34 +1,21 @@
 import { Task } from '../models/Task';
-import { Project } from '../models/Project';
 import { AppError } from '../utils/AppError';
+import { assertProjectAccess } from './projectAccess';
+import {
+  listSkip,
+  paginate,
+  sortDirection,
+  USER_PUBLIC_PROJECTION,
+  type ListQuery,
+} from '../utils/pagination';
+import type { UserRole } from '../constants';
 import type { CreateTaskInput, UpdateTaskInput } from '../validations/task.validation';
-
-interface ListQuery {
-  page: number;
-  limit: number;
-  sortBy: string;
-  sortOrder: 'asc' | 'desc';
-  status?: string;
-  priority?: string;
-}
-
-async function assertProjectAccess(projectId: string, userId: string, role: string) {
-  const project = await Project.findById(projectId);
-  if (!project) throw new AppError('Project not found', 404);
-
-  if (role !== 'admin') {
-    const ownerId = String(project.owner);
-    const isMember = project.members.some((m) => String(m) === userId);
-    if (ownerId !== userId && !isMember) throw new AppError('Forbidden', 403);
-  }
-  return project;
-}
 
 export async function createTask(
   projectId: string,
   data: CreateTaskInput,
   userId: string,
-  role: string,
+  role: UserRole,
 ) {
   await assertProjectAccess(projectId, userId, role);
   const task = await Task.create({ ...data, project: projectId, createdBy: userId });
@@ -38,7 +25,7 @@ export async function createTask(
 export async function listTasks(
   projectId: string,
   userId: string,
-  role: string,
+  role: UserRole,
   query: ListQuery,
 ) {
   await assertProjectAccess(projectId, userId, role);
@@ -47,31 +34,25 @@ export async function listTasks(
   if (query.status) filter['status'] = query.status;
   if (query.priority) filter['priority'] = query.priority;
 
-  const skip = (query.page - 1) * query.limit;
-  const sortDir = query.sortOrder === 'asc' ? 1 : -1;
-
   const [tasks, total] = await Promise.all([
     Task.find(filter)
-      .sort({ [query.sortBy]: sortDir })
-      .skip(skip)
+      .sort({ [query.sortBy]: sortDirection(query.sortOrder) })
+      .skip(listSkip(query))
       .limit(query.limit)
-      .populate('assignedTo', 'name email')
-      .populate('createdBy', 'name email'),
+      .populate('assignedTo', USER_PUBLIC_PROJECTION)
+      .populate('createdBy', USER_PUBLIC_PROJECTION),
     Task.countDocuments(filter),
   ]);
 
-  return {
-    data: tasks,
-    pagination: { total, page: query.page, limit: query.limit, pages: Math.ceil(total / query.limit) },
-  };
+  return paginate(tasks, total, query);
 }
 
-export async function getTask(projectId: string, taskId: string, userId: string, role: string) {
+export async function getTask(projectId: string, taskId: string, userId: string, role: UserRole) {
   await assertProjectAccess(projectId, userId, role);
 
   const task = await Task.findOne({ _id: taskId, project: projectId })
-    .populate('assignedTo', 'name email')
-    .populate('createdBy', 'name email');
+    .populate('assignedTo', USER_PUBLIC_PROJECTION)
+    .populate('createdBy', USER_PUBLIC_PROJECTION);
   if (!task) throw new AppError('Task not found', 404);
   return task;
 }
@@ -81,14 +62,26 @@ export async function updateTask(
   taskId: string,
   data: UpdateTaskInput,
   userId: string,
-  role: string,
+  role: UserRole,
 ) {
   await assertProjectAccess(projectId, userId, role);
 
   const task = await Task.findOne({ _id: taskId, project: projectId });
   if (!task) throw new AppError('Task not found', 404);
 
-  Object.assign(task, data);
+  // Explicit field assignment, not Object.assign: only the fields the
+  // update schema allows are ever written, and Mongoose setters run.
+  if (data.title !== undefined) task.title = data.title;
+  if (data.description !== undefined) task.description = data.description;
+  if (data.status !== undefined) task.status = data.status;
+  if (data.priority !== undefined) task.priority = data.priority;
+  // dueDate arrives as a validated ISO string; convert it explicitly.
+  if (data.dueDate !== undefined) task.dueDate = new Date(data.dueDate);
+  // assignedTo arrives as a string id; set() lets Mongoose cast it to an
+  // ObjectId on save, exactly as the old Object.assign did (an invalid id
+  // still fails as a CastError → 400, not a crash here).
+  if (data.assignedTo !== undefined) task.set('assignedTo', data.assignedTo);
+
   await task.save();
   return task;
 }
@@ -97,7 +90,7 @@ export async function deleteTask(
   projectId: string,
   taskId: string,
   userId: string,
-  role: string,
+  role: UserRole,
 ) {
   await assertProjectAccess(projectId, userId, role);
 
