@@ -1,32 +1,15 @@
 {
-  "name": "electropi-project-task-management",
-  "version": "1.0.0",
-  "description": "RESTful API for Project & Task Management — ElectroPi Technical Assessment",
-  "main": "dist/server.js",
-  "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/server.js",
-    "dev": "nodemon --watch src --ext ts --exec ts-node src/server.ts",
-    "seed": "ts-node src/scripts/seed.ts",
-    "test": "jest --runInBand --forceExit",
-    "test:coverage": "jest --runInBand --forceExit --coverage"
+  "author": "Mohamed Ramadan",
+  "bugs": {
+    "url": "https://github.com/MohamedRamadan200224/electropi-project-task-management/issues"
   },
-  "keywords": [
-    "nodejs",
-    "express",
-    "mongodb",
-    "typescript",
-    "rest-api"
-  ],
-  "author": "ElectroPi Candidate",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.1.0",
     "handlebars": "^4.7.9",
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.3",
@@ -35,6 +18,7 @@
     "resend": "^6.14.0",
     "zod": "^4.4.3"
   },
+  "description": "RESTful API for Project & Task Management \u2014 ElectroPi Technical Assessment",
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/compression": "^1.8.1",
@@ -51,5 +35,34 @@
     "ts-jest": "^29.4.11",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3"
-  }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "homepage": "https://github.com/MohamedRamadan200224/electropi-project-task-management#readme",
+  "keywords": [
+    "nodejs",
+    "express",
+    "mongodb",
+    "typescript",
+    "rest-api"
+  ],
+  "license": "ISC",
+  "main": "dist/server.js",
+  "name": "electropi-project-task-management",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MohamedRamadan200224/electropi-project-task-management.git"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "nodemon --watch src --ext ts --exec ts-node src/server.ts",
+    "seed": "ts-node src/scripts/seed.ts",
+    "start": "node dist/server.js",
+    "test": "jest --runInBand --forceExit",
+    "test:coverage": "jest --runInBand --forceExit --coverage",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "type": "commonjs",
+  "version": "1.0.0"
 }
