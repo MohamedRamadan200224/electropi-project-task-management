@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
+import rateLimit from 'express-rate-limit';
 import authRouter from './routes/auth.routes';
 import projectRouter from './routes/project.routes';
 import { mongoSanitize } from './middlewares/sanitize.middleware';
@@ -28,10 +29,17 @@ app.use(
   }),
 );
 
-app.use(cors());
+// CORS is restricted to the configured frontend origin only.
+// Previously app.use(cors()) allowed any site to call the API.
+app.use(
+  cors({
+    origin: ENV.FRONTEND_URL,
+    credentials: true,
+  }),
+);
 app.use(compression());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50kb' }));
+app.use(express.urlencoded({ extended: true, limit: '50kb' }));
 
 // Strip $ and . from user-supplied keys to block NoSQL operator injection
 app.use(mongoSanitize);
@@ -40,12 +48,34 @@ if (ENV.NODE_ENV !== 'test') {
   app.use(morgan('dev'));
 }
 
+// Rate limiting: a strict limiter on auth endpoints (brute-force /
+// enumeration / email-spam vectors), plus a general API limiter.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { status: 'fail', message: 'Too many auth attempts, please try again later.' },
+});
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 100,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { status: 'fail', message: 'Too many requests, please try again later.' },
+});
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.use('/api/auth', authRouter);
-app.use('/api/projects', projectRouter);
+app.use('/api/auth', authLimiter, authRouter);
+app.use('/api/projects', apiLimiter, projectRouter);
+
+// JSON 404 for unknown routes, instead of Express's default HTML 404.
+app.use((_req, res) => {
+  res.status(404).json({ status: 'fail', message: 'Route not found' });
+});
 
 // Unknown routes get the same JSON envelope as every other response,
 // instead of Express's default HTML 404 page.

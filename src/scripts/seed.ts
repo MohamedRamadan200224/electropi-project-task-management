@@ -10,15 +10,31 @@ import { Project } from '../models/Project';
 import { Task } from '../models/Task';
 import { BCRYPT_ROUNDS } from '../constants';
 
+function requireSeedPassword(name: string): string {
+  const value = process.env[name];
+  if (!value || value.length < 12) {
+    throw new Error(`${name} must be set in .env to at least 12 characters. See .env.example.`);
+  }
+  return value;
+}
+
 async function seed() {
+  // Seeding wipes all collections. Never run it against production.
+  if (process.env['NODE_ENV'] === 'production') {
+    throw new Error('Refusing to seed in production: seed wipes all users, projects and tasks.');
+  }
+
+  const adminPassword = requireSeedPassword('SEED_ADMIN_PASSWORD');
+  const memberPassword = requireSeedPassword('SEED_MEMBER_PASSWORD');
+
   await connectDB();
 
   await Promise.all([User.deleteMany({}), Project.deleteMany({}), Task.deleteMany({})]);
   console.log('Cleared existing data');
 
   const [adminPass, memberPass] = await Promise.all([
-    bcrypt.hash('admin123', BCRYPT_ROUNDS),
-    bcrypt.hash('member123', BCRYPT_ROUNDS),
+        bcrypt.hash(adminPassword, BCRYPT_ROUNDS),
+        bcrypt.hash(memberPassword, BCRYPT_ROUNDS),
   ]);
 
   const [admin, member] = await User.create([
@@ -70,9 +86,10 @@ async function seed() {
   ]);
 
   console.log('Created tasks');
-  console.log('\nSeed complete. Credentials:');
-  console.log('  Admin  → admin@electropi.com / admin123');
-  console.log('  Member → member@electropi.com / member123');
+  console.log('\nSeed complete. Users created:');
+  console.log('  Admin  → admin@electropi.com');
+  console.log('  Member → member@electropi.com');
+  console.log('Passwords are the SEED_ADMIN_PASSWORD / SEED_MEMBER_PASSWORD values from your .env — they are not printed here.');
 
   await mongoose.disconnect();
 }

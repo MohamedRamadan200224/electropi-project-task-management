@@ -27,9 +27,18 @@ export const updateTaskSchema = z.object({
 
 export const taskQuerySchema = z.object({
   query: z.object({
-    page: z.string().optional().default('1'),
-    limit: z.string().optional().default('10'),
-    sortBy: z.string().optional().default('createdAt'),
+    // Perf P0: page/limit were raw strings parsed with parseInt in the
+    // controller, so ?page=abc produced NaN and a broken skip/limit.
+    // Coerce to numbers here: non-numeric input (NaN) and non-integers fail
+    // validation with a 400, and limit is capped at 100. Defaults match the
+    // previous behaviour (page 1, limit 10).
+    page: z.coerce.number().int().min(1).optional().default(1),
+    limit: z.coerce.number().int().min(1).max(100).optional().default(10),
+    // Perf P0: sortBy was any client-supplied string passed straight into
+    // .sort(). Allowlist only fields that exist on Task. 'dueDate' also
+    // exists and now has an index ({ project, dueDate }), but it was kept
+    // out of this allowlist per the P0 scope — it can be added later.
+    sortBy: z.enum(['createdAt', 'updatedAt', 'title', 'status', 'priority']).optional().default('createdAt'),
     sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
     status: z.enum(TASK_STATUSES).optional(),
     priority: z.enum(TASK_PRIORITIES).optional(),
@@ -38,3 +47,4 @@ export const taskQuerySchema = z.object({
 
 export type CreateTaskInput = z.infer<typeof createTaskSchema>['body'];
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>['body'];
+export type TaskQueryInput = z.infer<typeof taskQuerySchema>['query'];

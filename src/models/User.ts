@@ -25,4 +25,10 @@ const userSchema = new Schema<IUser>(
   { timestamps: true },
 );
 
+// Perf P0: password reset looks up users with
+// findOne({ resetPasswordToken, resetPasswordExpires: { $gt: now } }),
+// which scanned the whole users collection. This index serves that lookup.
+// (email is already indexed via unique: true.)
+userSchema.index({ resetPasswordToken: 1 });
+
 export const User = model<IUser>('User', userSchema);

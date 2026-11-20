@@ -36,4 +36,10 @@ const taskSchema = new Schema<ITask>(
 taskSchema.index({ project: 1, status: 1 });
 taskSchema.index({ project: 1, priority: 1 });
 
+// Perf P0: the default list sort is createdAt, which had no index, so every
+// task list sorted in memory after scanning the project's tasks. These two
+// indexes cover the default sort and due-date ordering within a project.
+taskSchema.index({ project: 1, createdAt: -1 });
+taskSchema.index({ project: 1, dueDate: 1 });
+
 export const Task = model<ITask>('Task', taskSchema);
