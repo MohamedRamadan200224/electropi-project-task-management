@@ -12,13 +12,28 @@ export async function createProject(req: Request, res: Response, next: NextFunct
 
 export async function listProjects(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const q = req.query as Record<string, string>;
+    // req.query is already validated and coerced by validate(projectQuerySchema):
+    // page/limit arrive as numbers (min 1, limit max 100) and sortBy is
+    // allowlisted. The guards below are defence-in-depth only, so a request
+    // that ever reaches this handler without validation (e.g. a future route
+    // change) can still never produce a NaN skip/limit or an arbitrary sort.
+    // parseInt was removed: it turned ?page=abc into NaN.
+    const q = req.query as unknown as Record<string, unknown>;
+    const rawPage = Number(q['page']);
+    const page = Number.isFinite(rawPage) && rawPage >= 1 ? Math.floor(rawPage) : 1;
+    const rawLimit = Number(q['limit']);
+    const limit = Number.isFinite(rawLimit) && rawLimit >= 1 ? Math.min(Math.floor(rawLimit), 100) : 10;
+    const allowedSortBy = ['createdAt', 'updatedAt', 'title', 'status'] as const;
+    const sortBy =
+      typeof q['sortBy'] === 'string' && (allowedSortBy as readonly string[]).includes(q['sortBy'])
+        ? q['sortBy']
+        : 'createdAt';
     const result = await projectService.listProjects(req.user!.userId, req.user!.role, {
-      page: parseInt(q['page'] ?? '1', 10),
-      limit: Math.min(parseInt(q['limit'] ?? '10', 10), 100),
-      sortBy: q['sortBy'] ?? 'createdAt',
-      sortOrder: (q['sortOrder'] as 'asc' | 'desc') ?? 'desc',
-      status: q['status'],
+      page,
+      limit,
+      sortBy,
+      sortOrder: q['sortOrder'] === 'asc' ? 'asc' : 'desc',
+      status: typeof q['status'] === 'string' ? q['status'] : undefined,
     });
     res.status(200).json({ status: 'success', ...result });
   } catch (err) {
