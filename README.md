@@ -1,5 +1,9 @@
 # ElectroPi — Project & Task Management API
 
+[![CI](https://github.com/MohamedRamadan200224/electropi-project-task-management/actions/workflows/ci.yml/badge.svg)](https://github.com/MohamedRamadan200224/electropi-project-task-management/actions/workflows/ci.yml)
+[![Node.js](https://img.shields.io/badge/Node.js-20-339933?logo=nodedotjs)](https://nodejs.org/)
+[![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](./LICENSE)
+
 A production-ready RESTful API for managing projects and tasks, built for the ElectroPi Backend Node.js Technical Assessment.
 
 It provides JWT authentication (register/login + password reset via email), full CRUD for projects and tasks with ownership-based access, role-based access control (Admin / Member), pagination, sorting, and filtering — built on a layered architecture with input validation and centralized error handling.
@@ -10,7 +14,7 @@ It provides JWT authentication (register/login + password reset via email), full
 
 | Category | Technology |
 |---|---|
-| Runtime | Node.js v18+ |
+| Runtime | Node.js v20+ |
 | Framework | Express.js v5 |
 | Database | MongoDB |
 | ODM | Mongoose v9 |
@@ -48,14 +52,14 @@ Base URL: `http://localhost:5000/api`. Protected endpoints require an `Authoriza
 
 ### Prerequisites
 
-- Node.js v18+
+- Node.js v20+
 - MongoDB (local or Atlas)
 - npm
 
 ### 1. Clone & install
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/MohamedRamadan200224/electropi-project-task-management.git
 cd electropi-project-task-management
 npm install
 ```
@@ -65,6 +69,8 @@ npm install
 ```bash
 cp .env.example .env
 # Edit .env with your values (see Environment Variables below)
+# JWT_SECRET is required and must be at least 32 random characters:
+# openssl rand -hex 32
 ```
 
 ### 3. Run in development
@@ -75,15 +81,18 @@ npm run dev
 
 The API will be available at `http://localhost:5000`.
 
-### 4. Seed the database (optional)
+### 4. Seed the database (optional, local dev only)
 
 ```bash
 npm run seed
 ```
 
-This creates:
-- **Admin**: `admin@electropi.com` / `admin123`
-- **Member**: `member@electropi.com` / `member123`
+Set `SEED_ADMIN_PASSWORD` and `SEED_MEMBER_PASSWORD` in `.env` first (at least 12 characters each). This creates:
+
+- **Admin**: `admin@electropi.com`
+- **Member**: `member@electropi.com`
+
+Passwords are never printed or committed. Seeding refuses to run when `NODE_ENV=production`, because it wipes all users, projects and tasks.
 
 ### 5. Build & run for production
 
@@ -97,15 +106,18 @@ npm start
 ```bash
 npm test
 npm run test:coverage
+npm run typecheck
 ```
 
 ### Run with Docker
 
 ```bash
-cp .env.example .env        # set JWT_SECRET at minimum
+cp .env.example .env        # set JWT_SECRET and MONGO_ROOT_PASSWORD at minimum
 docker compose up -d        # starts MongoDB + API
 docker compose exec api npm run seed   # optional: seed after containers are up
 ```
+
+MongoDB is not exposed on the host in Compose, and it runs with authentication. The API container runs as the non-root `node` user.
 
 ## Environment Variables
 
@@ -114,12 +126,12 @@ Copy `.env.example` to `.env` and fill in your values:
 ```env
 PORT=5000
 MONGO_URI=mongodb://localhost:27017/electropi_pm
-JWT_SECRET=your_super_secret_jwt_key_here
+JWT_SECRET=your-32-plus-character-random-secret
 JWT_EXPIRES_IN=7d
 NODE_ENV=development
 
 # Email (Resend — https://resend.com)
-RESEND_API_KEY=re_your_api_key_here
+RESEND_API_KEY=your-resend-api-key
 FROM_EMAIL=ElectroPi PM <noreply@yourdomain.com>
 FRONTEND_URL=http://localhost:3000
 RESET_TOKEN_EXPIRES_MINUTES=10
@@ -131,11 +143,19 @@ RESET_TOKEN_EXPIRES_MINUTES=10
 >
 > The example emails in the Postman collection (e.g. `member@electropi.com`) are illustrative only and will not receive mail. Note that `forgot-password` always returns `200` (to prevent user enumeration), so a success response does **not** by itself mean an email was sent.
 
+## Security
+
+- `JWT_SECRET` has no fallback — the app fails to start without a secret of at least 32 characters.
+- Auth endpoints are rate-limited (10 attempts / 15 minutes); the rest of the API is limited to 100 requests / 15 minutes.
+- CORS is restricted to `FRONTEND_URL` only.
+- Reset tokens are stored hashed, are single-use, and expire after 10 minutes.
+- JWTs are valid for 7 days by default, are not revocable, and the role is baked into the token at sign-in — see `NOTES.md` for the trade-off.
+
 ## Troubleshooting
 
 **Can't connect to MongoDB Atlas on startup**
 
-The most common cause is that your IP isn't allowed to reach the cluster. In the Atlas dashboard go to **Network Access → Add IP Address** and add `0.0.0.0/0` (allow access from anywhere — fine for testing/assessment). This resolves the majority of connection failures on its own.
+The most common cause is that your IP isn't allowed to reach the cluster. In the Atlas dashboard go to **Network Access → Add IP Address** and allow only your current IP (or your office/VPN range). Do not allow access from anywhere in production — that exposes the cluster to the whole internet.
 
 **`querySrv ECONNREFUSED ..._mongodb._tcp.<cluster>.mongodb.net`**
 

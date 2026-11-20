@@ -1,16 +1,21 @@
-version: '3.9'
-
 services:
   mongo:
     image: mongo:7
     container_name: electropi_mongo
     restart: unless-stopped
-    ports:
-      - '27017:27017'
+    # MongoDB is NOT exposed on the host. The API reaches it on the
+    # internal Compose network only.
     volumes:
       - mongo_data:/data/db
     environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-electropi_admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?MONGO_ROOT_PASSWORD must be set in .env}
       MONGO_INITDB_DATABASE: electropi_pm
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "-u", "${MONGO_ROOT_USER:-electropi_admin}", "-p", "${MONGO_ROOT_PASSWORD}", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   api:
     build: .
@@ -21,11 +26,13 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5000
-      MONGO_URI: mongodb://mongo:27017/electropi_pm
-      JWT_SECRET: ${JWT_SECRET:-supersecretkey_change_in_prod}
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:-electropi_admin}:${MONGO_ROOT_PASSWORD}@mongo:27017/electropi_pm?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (at least 32 random characters)}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
 
 volumes:
   mongo_data:
