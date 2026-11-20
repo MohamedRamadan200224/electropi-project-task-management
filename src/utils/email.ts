@@ -3,8 +3,24 @@ import handlebars from 'handlebars';
 import fs from 'fs';
 import path from 'path';
 import { ENV } from '../config/env';
+import { AppError } from './AppError';
 
-const resend = new Resend(ENV.RESEND_API_KEY);
+// The Resend client is built lazily, only when an email is actually sent.
+// Constructing it at module load (`new Resend('')`) throws "Missing API
+// key" when RESEND_API_KEY is empty, which took the whole app down at
+// boot — signup, login and everything else died with it, even though
+// signup never sends an email. With this, the app boots and signup works
+// with no email provider configured; only the password-reset emails fail,
+// with a clear 500, when the key is missing.
+function getResend(): Resend {
+  if (!ENV.RESEND_API_KEY) {
+    throw new AppError(
+      'Email service is not configured (RESEND_API_KEY is not set)',
+      500,
+    );
+  }
+  return new Resend(ENV.RESEND_API_KEY);
+}
 
 function compileTemplate(templateName: string): handlebars.TemplateDelegate {
   // __dirname, not process.cwd(): the app must find its templates no matter
@@ -35,7 +51,7 @@ export async function sendPasswordResetEmail(
   // Resend does not throw on API failure — it returns { data, error }.
   // The old code ignored the return value, so forgotPassword could report
   // success when no email was sent. Throw instead.
-  const { error } = await resend.emails.send({
+  const { error } = await getResend().emails.send({
     from: ENV.FROM_EMAIL,
     to,
     subject: 'Reset your ElectroPi PM password',
@@ -56,7 +72,7 @@ export async function sendPasswordResetSuccessEmail(
     changedAt: new Date().toUTCString(),
   });
 
-  const { error } = await resend.emails.send({
+  const { error } = await getResend().emails.send({
     from: ENV.FROM_EMAIL,
     to,
     subject: 'Your ElectroPi PM password was changed',
