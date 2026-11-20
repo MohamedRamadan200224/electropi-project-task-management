@@ -8,6 +8,7 @@ import { connectDB } from '../config/db';
 import { User } from '../models/User';
 import { Project } from '../models/Project';
 import { Task } from '../models/Task';
+import { BCRYPT_ROUNDS } from '../constants';
 
 function requireSeedPassword(name: string): string {
   const value = process.env[name];
@@ -32,8 +33,8 @@ async function seed() {
   console.log('Cleared existing data');
 
   const [adminPass, memberPass] = await Promise.all([
-    bcrypt.hash(adminPassword, 12),
-    bcrypt.hash(memberPassword, 12),
+        bcrypt.hash(adminPassword, BCRYPT_ROUNDS),
+        bcrypt.hash(memberPassword, BCRYPT_ROUNDS),
   ]);
 
   const [admin, member] = await User.create([

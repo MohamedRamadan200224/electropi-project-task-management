@@ -7,7 +7,10 @@ import { ENV } from '../config/env';
 const resend = new Resend(ENV.RESEND_API_KEY);
 
 function compileTemplate(templateName: string): handlebars.TemplateDelegate {
-  const filePath = path.join(process.cwd(), 'templates', `${templateName}.hbs`);
+  // __dirname, not process.cwd(): the app must find its templates no matter
+  // which directory it is started from. Works both from src/ (ts-node) and
+  // dist/ (compiled), since both sit two levels below the repo root.
+  const filePath = path.join(__dirname, '..', '..', 'templates', `${templateName}.hbs`);
   const source = fs.readFileSync(filePath, 'utf-8');
   return handlebars.compile(source);
 }
@@ -29,12 +32,18 @@ export async function sendPasswordResetEmail(
     expiresInMinutes: ENV.RESET_TOKEN_EXPIRES_MINUTES,
   });
 
-  await resend.emails.send({
+  // Resend does not throw on API failure — it returns { data, error }.
+  // The old code ignored the return value, so forgotPassword could report
+  // success when no email was sent. Throw instead.
+  const { error } = await resend.emails.send({
     from: ENV.FROM_EMAIL,
     to,
     subject: 'Reset your ElectroPi PM password',
     html,
   });
+  if (error) {
+    throw new Error(`Failed to send password reset email: ${error.message}`);
+  }
 }
 
 export async function sendPasswordResetSuccessEmail(
@@ -47,10 +56,13 @@ export async function sendPasswordResetSuccessEmail(
     changedAt: new Date().toUTCString(),
   });
 
-  await resend.emails.send({
+  const { error } = await resend.emails.send({
     from: ENV.FROM_EMAIL,
     to,
     subject: 'Your ElectroPi PM password was changed',
     html,
   });
+  if (error) {
+    throw new Error(`Failed to send password reset confirmation email: ${error.message}`);
+  }
 }

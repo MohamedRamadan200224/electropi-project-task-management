@@ -1,4 +1,4 @@
-import { createTask, listTasks, getTask, deleteTask } from '../services/task.service';
+import { createTask, listTasks, getTask, updateTask, deleteTask } from '../services/task.service';
 import { Project } from '../models/Project';
 import { Task } from '../models/Task';
 
@@ -86,6 +86,47 @@ describe('TaskService.getTask', () => {
 
     await expect(getTask(projectId, 'bad-id', userId, 'member'))
       .rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe('TaskService.updateTask', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('updates allowed fields for a project member', async () => {
+    (Project.findById as jest.Mock).mockResolvedValue(mockProject);
+    const task = { ...mockTask, save: jest.fn() };
+    (Task.findOne as jest.Mock).mockResolvedValue(task);
+
+    const result = await updateTask(
+      projectId,
+      taskId,
+      { title: 'New title', status: 'done', priority: 'high' },
+      userId,
+      'member',
+    );
+
+    expect(task.title).toBe('New title');
+    expect(task.status).toBe('done');
+    expect(task.priority).toBe('high');
+    expect(task.save).toHaveBeenCalled();
+    expect(result).toBe(task);
+  });
+
+  it('throws 404 when task does not exist', async () => {
+    (Project.findById as jest.Mock).mockResolvedValue(mockProject);
+    (Task.findOne as jest.Mock).mockResolvedValue(null);
+
+    await expect(updateTask(projectId, 'bad', { title: 'New title' }, userId, 'member'))
+      .rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('throws 403 when member has no project access', async () => {
+    (Project.findById as jest.Mock).mockResolvedValue({
+      _id: projectId, owner: 'otherUser', members: ['otherUser'],
+    });
+
+    await expect(updateTask(projectId, taskId, { title: 'New title' }, userId, 'member'))
+      .rejects.toMatchObject({ statusCode: 403 });
   });
 });
 

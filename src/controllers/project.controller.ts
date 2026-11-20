@@ -1,17 +1,15 @@
-import { Request, Response, NextFunction } from 'express';
+import { asyncHandler } from '../utils/asyncHandler';
+import { requireAuthUser } from '../middlewares/auth.middleware';
 import * as projectService from '../services/project.service';
 
-export async function createProject(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const project = await projectService.createProject(req.body, req.user!.userId);
-    res.status(201).json({ status: 'success', data: project });
-  } catch (err) {
-    next(err);
-  }
-}
+export const createProject = asyncHandler(async (req, res) => {
+  const user = requireAuthUser(req);
+  const project = await projectService.createProject(req.body, user.userId);
+  res.status(201).json({ status: 'success', data: project });
+});
 
-export async function listProjects(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
+export const listProjects = asyncHandler(async (req, res) => {
+    const user = requireAuthUser(req);
     // req.query is already validated and coerced by validate(projectQuerySchema):
     // page/limit arrive as numbers (min 1, limit max 100) and sortBy is
     // allowlisted. The guards below are defence-in-depth only, so a request
@@ -28,7 +26,7 @@ export async function listProjects(req: Request, res: Response, next: NextFuncti
       typeof q['sortBy'] === 'string' && (allowedSortBy as readonly string[]).includes(q['sortBy'])
         ? q['sortBy']
         : 'createdAt';
-    const result = await projectService.listProjects(req.user!.userId, req.user!.role, {
+      const result = await projectService.listProjects(user.userId, user.role, {
       page,
       limit,
       sortBy,
@@ -36,39 +34,27 @@ export async function listProjects(req: Request, res: Response, next: NextFuncti
       status: typeof q['status'] === 'string' ? q['status'] : undefined,
     });
     res.status(200).json({ status: 'success', ...result });
-  } catch (err) {
-    next(err);
-  }
-}
+});  
 
-export async function getProject(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const project = await projectService.getProject(String(req.params['id']), req.user!.userId, req.user!.role);
-    res.status(200).json({ status: 'success', data: project });
-  } catch (err) {
-    next(err);
-  }
-}
+export const getProject = asyncHandler(async (req, res) => {
+  const user = requireAuthUser(req);
+  const project = await projectService.getProject(String(req.params['id']), user.userId, user.role);
+  res.status(200).json({ status: 'success', data: project });
+});
 
-export async function updateProject(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const project = await projectService.updateProject(
-      String(req.params['id']),
-      req.body,
-      req.user!.userId,
-      req.user!.role,
-    );
-    res.status(200).json({ status: 'success', data: project });
-  } catch (err) {
-    next(err);
-  }
-}
+export const updateProject = asyncHandler(async (req, res) => {
+  const user = requireAuthUser(req);
+  const project = await projectService.updateProject(
+    String(req.params['id']),
+    req.body,
+    user.userId,
+    user.role,
+  );
+  res.status(200).json({ status: 'success', data: project });
+});
 
-export async function deleteProject(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    await projectService.deleteProject(String(req.params['id']), req.user!.userId, req.user!.role);
-    res.status(204).send();
-  } catch (err) {
-    next(err);
-  }
-}
+export const deleteProject = asyncHandler(async (req, res) => {
+  const user = requireAuthUser(req);
+  await projectService.deleteProject(String(req.params['id']), user.userId, user.role);
+  res.status(204).send();
+});

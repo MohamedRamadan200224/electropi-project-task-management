@@ -10,11 +10,17 @@ import { ENV } from './env';
  */
 async function ensureSrvResolvable(uri: string): Promise<void> {
   if (!uri.startsWith('mongodb+srv://')) return;
-  const host = uri.split('@')[1]?.split('/')[0]?.split('?')[0];
+  let host: string | undefined;
+  try {
+    host = new URL(uri).hostname;
+  } catch {
+    return;
+  }
   if (!host) return;
   try {
     await dns.promises.resolveSrv(`_mongodb._tcp.${host}`);
-  } catch {
+  } catch (err) {
+    console.error('SRV lookup failed, falling back to public DNS:', err);
     dns.setServers(['8.8.8.8', '1.1.1.1', ...dns.getServers()]);
   }
 }

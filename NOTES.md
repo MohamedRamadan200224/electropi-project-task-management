@@ -9,13 +9,15 @@ Layered architecture: **routes → controllers → services → models**, with c
 ```
 src/
 ├── config/          # DB connection, env config
+├── constants/       # Shared enum values & constants (single source of truth)
 ├── controllers/     # Request/response handlers
 ├── middlewares/     # Auth, validation, sanitization, error handling
 ├── models/          # Mongoose schemas (User, Project, Task)
 ├── routes/          # Express routers
 ├── scripts/         # Seed script
-├── services/        # Business logic layer
-├── utils/           # AppError, JWT helpers, email sender
+├── services/        # Business logic layer (incl. the shared project access check)
+├── types/           # Express Request augmentation (req.user)
+├── utils/           # AppError, JWT helpers, email sender, pagination, asyncHandler
 ├── __tests__/       # Jest unit tests
 ├── app.ts           # Express app setup
 └── server.ts        # Entry point
@@ -42,18 +44,19 @@ MongoDB with Mongoose is **schemaless at the database level** (the schema lives 
 | Role | Permissions |
 |---|---|
 | `admin` | Full access to all projects and tasks |
-| `member` | Access only to projects they own or are a member of |
+| `member` | Access only to projects they own or are a member of; may create, update and delete tasks in those projects, but may not update or delete the project itself |
 
 - **Roles are not self-assignable.** Registration accepts only `name`, `email`, and `password`; every new user is created as a `member`. Any `role` field in the request body is ignored — this is enforced in the service layer, which only ever reads `name`/`email`/`password`, preventing privilege escalation via the public registration endpoint.
 - The `admin` account is provisioned exclusively through the seed script (`admin@electropi.com` / `admin123`).
 - Admins bypass all ownership checks.
+- Project access is enforced by a single helper, `assertProjectAccess` (`src/services/projectAccess.ts`), used by both the project and task services: members pass the check for task operations, while project update/delete additionally require the caller to be the project owner (or an admin).
 
 ## Security
 
 - **NoSQL operator injection** is blocked by a small custom middleware (`src/middlewares/sanitize.middleware.ts`) that strips keys containing `$` or `.` from `req.body`, `req.params`, and `req.query`, applied once globally. It replaces `express-mongo-sanitize`, which is unmaintained and **crashes on Express 5** because it reassigns the now read-only `req.query` (the middleware instead shadows `req.query` via `Object.defineProperty`). It is also preferred over the `mongo-sanitize` package, which only strips `$`-prefixed keys — it ignores dotted keys like `{"user.role": ...}` and must be called manually on every value rather than applied once globally.
 - **Helmet** sets security headers. CSP is explicitly configured with `defaultSrc: 'none'` (the API serves no HTML) and `crossOriginResourcePolicy: cross-origin` so browser clients can read CORS responses.
 - **compression** applies gzip/deflate to all responses automatically.
-- Input is validated on **every** endpoint with **Zod**.
+- Input is validated with **Zod** on every endpoint that accepts a body, params, or query. `GET /:id`, `DELETE /:id`, `GET /:taskId` and `DELETE /:taskId` take only an id and have no `validate()` middleware — an invalid ObjectId there is caught by the global `CastError` handler (400).
 
 ## Password Reset Flow
 
@@ -70,7 +73,7 @@ MongoDB with Mongoose is **schemaless at the database level** (the schema lives 
 ## Validation & Error Handling
 
 - **Zod** schemas validate `body`, `params`, and `query` per route; validation failures return `400` with a structured list of field errors.
-- A global error handler returns correct HTTP status codes via a custom `AppError`. Mongoose `CastError` (invalid ObjectId) and duplicate-key errors are caught globally and mapped to proper `400` / `409` responses.
+- A global error handler returns correct HTTP status codes via a custom `AppError`. Mongoose `CastError` (invalid ObjectId), `ValidationError`, and duplicate-key errors are caught globally and mapped to proper `400` / `409` responses. A Zod error thrown outside the validation middleware gets the same `400` shape.
 
 ## API Reference
 
@@ -121,7 +124,7 @@ Base URL: `http://localhost:5000/api`. Protected endpoints require `Authorizatio
 - Pagination & sorting on list endpoints
 - Filtering tasks by status / priority
 - Role-based access control (Admin / Member)
-- Unit tests (Jest + Supertest)
+- Unit tests (Jest)
 - Docker Compose setup
 - TypeScript
 - Password reset via email (Resend + Handlebars templates)

@@ -77,6 +77,12 @@ app.use((_req, res) => {
   res.status(404).json({ status: 'fail', message: 'Route not found' });
 });
 
+// Unknown routes get the same JSON envelope as every other response,
+// instead of Express's default HTML 404 page.
+app.use((_req, res) => {
+  res.status(404).json({ status: 'fail', message: 'Route not found' });
+});
+
 app.use(errorHandler);
 
 export default app;

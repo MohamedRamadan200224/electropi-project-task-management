@@ -1,22 +1,20 @@
-import { Request, Response, NextFunction } from 'express';
+import { asyncHandler } from '../utils/asyncHandler';
+import { requireAuthUser } from '../middlewares/auth.middleware';
 import * as taskService from '../services/task.service';
 
-export async function createTask(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const task = await taskService.createTask(
-      String(req.params['projectId']),
-      req.body,
-      req.user!.userId,
-      req.user!.role,
-    );
-    res.status(201).json({ status: 'success', data: task });
-  } catch (err) {
-    next(err);
-  }
-}
+export const createTask = asyncHandler(async (req, res) => {
+  const user = requireAuthUser(req);
+  const task = await taskService.createTask(
+    String(req.params['projectId']),
+    req.body,
+    user.userId,
+    user.role,
+  );
+  res.status(201).json({ status: 'success', data: task });
+});
 
-export async function listTasks(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
+export const listTasks = asyncHandler(async (req, res) => {
+    const user = requireAuthUser(req);
     // req.query is already validated and coerced by validate(taskQuerySchema):
     // page/limit arrive as numbers (min 1, limit max 100) and sortBy is
     // allowlisted. The guards below are defence-in-depth only, so a request
@@ -35,8 +33,8 @@ export async function listTasks(req: Request, res: Response, next: NextFunction)
         : 'createdAt';
     const result = await taskService.listTasks(
       String(req.params['projectId']),
-      req.user!.userId,
-      req.user!.role,
+          user.userId,
+          user.role,
       {
         page,
         limit,
@@ -47,50 +45,38 @@ export async function listTasks(req: Request, res: Response, next: NextFunction)
       },
     );
     res.status(200).json({ status: 'success', ...result });
-  } catch (err) {
-    next(err);
-  }
-}
+});
 
-export async function getTask(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const task = await taskService.getTask(
-      String(req.params['projectId']),
-      String(req.params['taskId']),
-      req.user!.userId,
-      req.user!.role,
-    );
-    res.status(200).json({ status: 'success', data: task });
-  } catch (err) {
-    next(err);
-  }
-}
+export const getTask = asyncHandler(async (req, res) => {
+  const user = requireAuthUser(req);
+  const task = await taskService.getTask(
+    String(req.params['projectId']),
+    String(req.params['taskId']),
+    user.userId,
+    user.role,
+  );
+  res.status(200).json({ status: 'success', data: task });
+});
 
-export async function updateTask(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    const task = await taskService.updateTask(
-      String(req.params['projectId']),
-      String(req.params['taskId']),
-      req.body,
-      req.user!.userId,
-      req.user!.role,
-    );
-    res.status(200).json({ status: 'success', data: task });
-  } catch (err) {
-    next(err);
-  }
-}
+export const updateTask = asyncHandler(async (req, res) => {
+  const user = requireAuthUser(req);
+  const task = await taskService.updateTask(
+    String(req.params['projectId']),
+    String(req.params['taskId']),
+    req.body,
+    user.userId,
+    user.role,
+  );
+  res.status(200).json({ status: 'success', data: task });
+});
 
-export async function deleteTask(req: Request, res: Response, next: NextFunction): Promise<void> {
-  try {
-    await taskService.deleteTask(
-      String(req.params['projectId']),
-      String(req.params['taskId']),
-      req.user!.userId,
-      req.user!.role,
-    );
-    res.status(204).send();
-  } catch (err) {
-    next(err);
-  }
-}
+export const deleteTask = asyncHandler(async (req, res) => {
+  const user = requireAuthUser(req);
+  await taskService.deleteTask(
+    String(req.params['projectId']),
+    String(req.params['taskId']),
+    user.userId,
+    user.role,
+  );
+  res.status(204).send();
+});

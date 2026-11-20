@@ -1,11 +1,12 @@
 import { z } from 'zod';
+import { TASK_STATUSES, TASK_PRIORITIES } from '../constants';
 
 export const createTaskSchema = z.object({
   body: z.object({
     title: z.string().min(1, 'Title is required').trim(),
     description: z.string().optional().default(''),
-    status: z.enum(['pending', 'in_progress', 'done']).optional().default('pending'),
-    priority: z.enum(['low', 'medium', 'high']).optional().default('medium'),
+    status: z.enum(TASK_STATUSES).optional().default('pending'),
+    priority: z.enum(TASK_PRIORITIES).optional().default('medium'),
     dueDate: z.string().datetime({ offset: true }).optional(),
     assignedTo: z.string().optional(),
   }),
@@ -16,8 +17,8 @@ export const updateTaskSchema = z.object({
   body: z.object({
     title: z.string().min(1).trim().optional(),
     description: z.string().optional(),
-    status: z.enum(['pending', 'in_progress', 'done']).optional(),
-    priority: z.enum(['low', 'medium', 'high']).optional(),
+    status: z.enum(TASK_STATUSES).optional(),
+    priority: z.enum(TASK_PRIORITIES).optional(),
     dueDate: z.string().datetime({ offset: true }).optional(),
     assignedTo: z.string().optional(),
   }),
@@ -39,8 +40,8 @@ export const taskQuerySchema = z.object({
     // out of this allowlist per the P0 scope — it can be added later.
     sortBy: z.enum(['createdAt', 'updatedAt', 'title', 'status', 'priority']).optional().default('createdAt'),
     sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
-    status: z.enum(['pending', 'in_progress', 'done']).optional(),
-    priority: z.enum(['low', 'medium', 'high']).optional(),
+    status: z.enum(TASK_STATUSES).optional(),
+    priority: z.enum(TASK_PRIORITIES).optional(),
   }),
 });
 
