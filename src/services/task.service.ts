@@ -5,10 +5,9 @@ import {
   listSkip,
   paginate,
   sortDirection,
-  USER_PUBLIC_PROJECTION,
   type ListQuery,
 } from '../utils/pagination';
-import type { UserRole } from '../constants';
+import { USER_PUBLIC_PROJECTION, type UserRole } from '../constants';
 import type { CreateTaskInput, UpdateTaskInput } from '../validations/task.validation';
 
 export async function createTask(
